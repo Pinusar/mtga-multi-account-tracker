@@ -108,8 +108,8 @@
       border: 1px solid var(--br);
       overflow: hidden;
     }
-    .card.p-1 { border-color: #166534 }
-    .card.p-2 { border-color: #7c2d12 }
+    .card.p-1 { border-color: #7c2d12 }
+    .card.p-2 { border-color: #166534 }
     .card.drafting { border-color: #155e75 }
 
     /* card header */
@@ -216,6 +216,15 @@
     }
     .dot.on { background: var(--green); border-color: var(--green) }
     .wins-lbl { font-size: .78rem; color: var(--d); flex: 1 }
+
+    /* quest */
+    .quest-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .55rem;
+    }
+    .quest-lbl { font-size: .85rem; flex: 0 0 auto; color: var(--d) }
 
     /* draft buttons */
     .draft-row { display: flex; gap: .5rem; flex-wrap: wrap }
@@ -331,6 +340,8 @@ const DRAFT_GOLD   = 5000;
 const DRAFT_GEMS   = 750;
 const WIN_CUTOFF   = 4;
 const WIN_REWARDS  = [250, 100, 100, 100]; // gold per win, in order
+const QUEST_MAX    = 3;
+const QUEST_REWARD = 500;
 const RESET_HOUR   = 9; // 09:00 UTC (per MTGA _dailyRewardResetTimestamp)
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -351,6 +362,7 @@ function commit() {
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   accounts = raw ? JSON.parse(raw) : [];
+  accounts.forEach(a => { if (a.quests == null) a.quests = 0; });
   checkReset();
 }
 
@@ -369,6 +381,7 @@ function checkReset() {
   if (lastReset < threshold && accounts.length > 0) {
     accounts.forEach(a => {
       a.dailyWins = 0;
+      a.quests = Math.min((a.quests || 0) + 1, QUEST_MAX);
     });
     didReset = true;
     localStorage.setItem(RESET_KEY, String(threshold));
@@ -382,35 +395,39 @@ function canDraft(a) {
 }
 
 function priority(a) {
-  if (a.dailyWins >= WIN_CUTOFF) return 3;
-  if (a.inDraft)                 return 1;
-  if (canDraft(a))               return 1;
-  return 2;
+  if (a.dailyWins >= WIN_CUTOFF)           return 4;
+  if (canDraft(a) && a.quests === QUEST_MAX) return 1;
+  if (a.inDraft || canDraft(a))            return 2;
+  return 3;
 }
 
 function statusFor(a) {
-  if (a.inDraft && a.dailyWins < WIN_CUTOFF) return { lbl: '⚔ Drafting', cls: 's0' };
+  if (canDraft(a) && a.quests === QUEST_MAX)  return { lbl: 'Draft! Quest cap', cls: 's2' };
+  if (a.inDraft && a.dailyWins < WIN_CUTOFF)  return { lbl: '⚔ Drafting',      cls: 's0' };
   const p = priority(a);
-  if (p === 1) return { lbl: 'Draft now!',     cls: 's1' };
-  if (p === 2) return { lbl: `${WIN_CUTOFF - a.dailyWins} wins left`, cls: 's3' };
-  return { lbl: a.inDraft ? 'Draft: resume tomorrow' : 'Done today', cls: 's4' };
+  if (p === 2) return { lbl: 'Draft now!',                              cls: 's1' };
+  if (p === 3) return { lbl: `${WIN_CUTOFF - a.dailyWins} wins left`,  cls: 's3' };
+  return { lbl: a.inDraft ? 'Draft: resume tomorrow' : 'Done today',   cls: 's4' };
 }
 
 function bannerFor(a) {
   const n = esc(a.name);
-  if (a.inDraft && a.dailyWins < WIN_CUTOFF) return { text: `Continue draft on <strong>${n}</strong>`, color: 'var(--draft)', p: 0 };
+  if (canDraft(a) && a.quests === QUEST_MAX)
+    return { text: `Draft on <strong>${n}</strong> — quest cap!`, color: 'var(--orange)', p: 2 };
+  if (a.inDraft && a.dailyWins < WIN_CUTOFF)
+    return { text: `Continue draft on <strong>${n}</strong>`, color: 'var(--draft)', p: 0 };
   const p = priority(a);
-  if (p === 1) return { text: `Draft on <strong>${n}</strong>`, color: 'var(--green)', p };
-  if (p === 2) return { text: `Play <strong>${n}</strong> — ${WIN_CUTOFF - a.dailyWins} wins left`, color: 'var(--yellow)', p };
-  return { text: 'All done for today!', color: 'var(--gray)', p: 3 };
+  if (p === 2) return { text: `Draft on <strong>${n}</strong>`,                                    color: 'var(--green)',  p: 1 };
+  if (p === 3) return { text: `Play <strong>${n}</strong> — ${WIN_CUTOFF - a.dailyWins} wins left`, color: 'var(--yellow)', p: 3 };
+  return { text: 'All done for today!', color: 'var(--gray)', p: 4 };
 }
 
 function sorted() {
   return [...accounts].sort((a, b) => {
     const pa = priority(a), pb = priority(b);
     if (pa !== pb) return pa - pb;
-    // within p=1, inDraft accounts first
-    if (pa === 1 && a.inDraft !== b.inDraft) return a.inDraft ? -1 : 1;
+    if (b.quests !== a.quests) return b.quests - a.quests;
+    if (a.inDraft !== b.inDraft) return a.inDraft ? -1 : 1;
     return b.gold - a.gold;
   });
 }
@@ -426,6 +443,7 @@ function addAccount(name) {
     gems: 0,
     dailyWins: 0,
     inDraft: false,
+    quests: 0,
     updatedAt: Date.now(),
   });
   commit();
@@ -454,6 +472,15 @@ function addWin(id) {
   if (!a || a.dailyWins >= WIN_CUTOFF) return;
   a.gold += WIN_REWARDS[a.dailyWins];
   a.dailyWins++;
+  a.updatedAt = Date.now();
+  commit();
+}
+
+function completeQuest(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || a.quests === 0) return;
+  a.quests--;
+  a.gold += QUEST_REWARD;
   a.updatedAt = Date.now();
   commit();
 }
@@ -558,6 +585,22 @@ function renderCard(a) {
     ? `<span style="color:var(--green);font-size:.78rem">✓ done</span>`
     : `<span class="wins-lbl">${WIN_CUTOFF - a.dailyWins} left</span>`;
 
+  // quests
+  const questDots = Array.from({length: QUEST_MAX}, (_, i) =>
+    `<span class="dot${i < a.quests ? ' on' : ''}"></span>`
+  ).join('');
+  const questCap = a.quests === QUEST_MAX
+    ? `<span style="color:var(--orange);font-size:.75rem;font-weight:700">cap!</span>` : '';
+  const questBtn = a.quests > 0
+    ? `<button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">+${fmt(QUEST_REWARD)}g</button>` : '';
+  const questSection = `
+    <div class="quest-row">
+      <span class="quest-lbl">Quests</span>
+      <div class="dots">${questDots}</div>
+      ${questCap}
+      ${questBtn}
+    </div>`;
+
   // draft section
   let draftSection = '';
   if (a.inDraft) {
@@ -608,6 +651,7 @@ function renderCard(a) {
           ? `<button class="btn btn-xs btn-green" style="margin-left:auto" onclick="addWin('${a.id}')">+Win (+${fmt(WIN_REWARDS[a.dailyWins])}g)</button>`
           : ''}
       </div>
+      ${questSection}
       ${draftSection}
     </div>
     <div class="card-foot">
