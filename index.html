@@ -741,33 +741,34 @@ function render() {
       <div class="modal help">
         <h2>MTGA Multi-Account Tracker</h2>
         <div class="help-body">
-          <p>Track gold, gems, quests, and draft readiness across all your MTGA accounts. The banner at the top always tells you which account to play next.</p>
+          <h3>Why multiple accounts?</h3>
+          <p>Drafting on MTGA is expensive. If your win rate isn't high enough, you'll slowly run out of gems and have to spend real money to keep going. One way to offset this is to run multiple accounts and farm the daily rewards system on each one.</p>
+          <p style="margin-top:.5rem">Every day, the first 4 wins on an account grant <b>550 gold</b> total (250 → 100 → 100 → 100). After that, rewards drop sharply. Completing a daily quest adds another <b>500 gold</b>. That's up to <b>~1,050g per account per day</b> — enough to accumulate draft entries over time and practice more without spending money.</p>
+
+          <h3>What this tracker does</h3>
+          <p>It keeps track of gold, gems, quests, and draft status across all your accounts, and tells you exactly which account to play next to make the most of your daily rewards.</p>
 
           <h3>Daily routine</h3>
           <ul>
-            <li>Each account earns <b>win rewards</b>: 250g → 100g → 100g → 100g (4 wins)</li>
-            <li>Each day you receive <b>1 new quest</b> (max 3 stored). Complete one for +500g.</li>
-            <li>Draft costs <b>5,000g</b> or <b>750 gems</b>.</li>
+            <li>Get <b>4 wins</b> on each account — gold is added automatically as you record wins</li>
+            <li>Complete <b>quests</b> for +500g each (you gain 1 new quest per day, max 3 stored)</li>
+            <li>Once an account has <b>5,000g or 750 gems</b>, enter a draft</li>
           </ul>
 
-          <h3>Priority — what to do next</h3>
-          <ul>
-            <li><b style="color:var(--orange)">Quest cap</b> + can draft — most urgent: start draft now</li>
-            <li><b style="color:var(--green)">Draft now!</b> — enough gold or gems to enter</li>
-            <li><b style="color:var(--yellow)">X wins left</b> — play to earn daily gold</li>
-          </ul>
+          <h3>The banner</h3>
+          <p>The coloured banner at the top always tells you which account to play next and why. Accounts at the <b style="color:var(--orange)">quest cap</b> that can draft are most urgent — sitting at 3 quests means you're leaving free gold on the table.</p>
 
           <h3>Buttons</h3>
           <ul>
-            <li><b>+ Account</b> — add a new account</li>
+            <li><b>+ Account</b> — add an account</li>
             <li>Click <b>gold or gems</b> to edit the value directly</li>
-            <li><b>+Win</b> — record a win (adds gold automatically)</li>
-            <li><b>+</b> / <b>Complete quest</b> — add or complete a quest</li>
-            <li><b>Draft (5,000g / 750💎)</b> — enter a draft, deducts the cost</li>
+            <li><b>+Win</b> — record a win (gold added automatically)</li>
+            <li><b>+</b> / <b>Complete quest</b> — manually add a quest or complete one for +500g</li>
+            <li><b>Draft (5,000g / 750💎)</b> — start a draft, cost is deducted</li>
           </ul>
 
           <h3>Data</h3>
-          <p>Everything is saved locally in your browser. Use <b>Export / Import JSON</b> at the bottom to back up or move between devices.</p>
+          <p>Saved locally in your browser. Use <b>Export / Import JSON</b> to back up or move between devices.</p>
         </div>
         <div class="modal-btns" style="margin-top:1rem">
           <button class="btn btn-primary" onclick="closeHelp()">Got it</button>
