@@ -289,33 +289,6 @@
     .total-lbl { font-size: .62rem; text-transform: uppercase; letter-spacing: .07em; color: var(--d); margin-bottom: .15rem }
     .total-val { font-size: 1rem; font-weight: 700; line-height: 1 }
 
-    /* Log bar */
-    .log-bar {
-      padding: .45rem 1rem;
-      background: var(--s1);
-      border-bottom: 1px solid var(--br);
-      font-size: .78rem;
-    }
-    .log-bar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .3rem }
-    .log-bar-lbl { color: var(--d); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em }
-    .log-bar-row {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      flex-wrap: wrap;
-      padding: .2rem 0;
-      border-top: 1px solid var(--br);
-    }
-    .log-bar-row:first-of-type { border-top: none }
-    .log-bar-data { display: flex; gap: .6rem; flex-wrap: wrap; flex: 1 }
-    .log-bar-val { font-weight: 600 }
-    .log-bar-err { color: var(--orange) }
-    .log-bar-src { font-size: .65rem; color: var(--d); background: var(--s2); border-radius: 3px; padding: .1rem .3rem; flex-shrink: 0 }
-    .log-acct-sel {
-      background: var(--s2); border: 1px solid var(--br); border-radius: var(--r2);
-      color: var(--t); font: inherit; font-size: .75rem; padding: .2rem .4rem; outline: none;
-    }
-
     /* IO row */
     .io-row { padding: .6rem 1rem; display: flex; gap: .5rem }
 
@@ -372,24 +345,25 @@ const DRAFT_GEMS   = 750;
 const WIN_CUTOFF   = 4;
 const RESET_HOUR   = 9; // 09:00 UTC (per MTGA _dailyRewardResetTimestamp)
 
-const SERVER_MODE = window.location.protocol !== 'file:';
-
 // ── State ────────────────────────────────────────────────────────────────────
 let accounts  = [];
 let didReset  = false;
 let showModal = false;
-let logData   = null; // last result from /api/log
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
 }
 
+function commit() {
+  save();
+  render();
+}
+
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   accounts = raw ? JSON.parse(raw) : [];
   checkReset();
-  if (SERVER_MODE) fetchLog();
 }
 
 // ── Daily reset at 10:00 UTC ─────────────────────────────────────────────────
@@ -471,18 +445,13 @@ function addAccount(name) {
     quest: { reward: 750, completed: false },
     updatedAt: Date.now(),
   });
-  save(); render();
+  commit();
 }
 
 function removeAccount(id) {
   if (!confirm('Remove this account?')) return;
   accounts = accounts.filter(a => a.id !== id);
-  save(); render();
-}
-
-function touch(id) {
-  const a = accounts.find(a => a.id === id);
-  if (a) { a.updatedAt = Date.now(); save(); }
+  commit();
 }
 
 function setField(id, field, val) {
@@ -490,7 +459,7 @@ function setField(id, field, val) {
   if (!a) return;
   a[field] = val;
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function setGold(id, val) { setField(id, 'gold', Math.max(0, parseInt(val) || 0)); }
@@ -502,7 +471,7 @@ function addWin(id) {
   if (!a) return;
   a.dailyWins = Math.min(a.dailyWins + 1, 15);
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function completeQuest(id) {
@@ -511,15 +480,16 @@ function completeQuest(id) {
   a.quest.completed = true;
   a.gold += a.quest.reward;
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function undoQuest(id) {
   const a = accounts.find(a => a.id === id);
   if (!a || !a.quest.completed) return;
   a.quest.completed = false;
+  a.gold = Math.max(0, a.gold - a.quest.reward);
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function setQuestReward(id, reward) {
@@ -527,7 +497,7 @@ function setQuestReward(id, reward) {
   if (!a) return;
   a.quest.reward = reward;
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function draftGold(id) {
@@ -537,7 +507,7 @@ function draftGold(id) {
   a.dailyWins = 0;
   a.inDraft = true;
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function draftGems(id) {
@@ -547,7 +517,7 @@ function draftGems(id) {
   a.dailyWins = 0;
   a.inDraft = true;
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 function finishDraft(id) {
@@ -555,7 +525,7 @@ function finishDraft(id) {
   if (!a) return;
   a.inDraft = false;
   a.updatedAt = Date.now();
-  save(); render();
+  commit();
 }
 
 // ── Import / Export ───────────────────────────────────────────────────────────
@@ -578,7 +548,7 @@ function importData() {
         const data = JSON.parse(ev.target.result);
         if (!Array.isArray(data)) throw new Error();
         accounts = data;
-        save(); render();
+        commit();
       } catch { alert('Invalid JSON file'); }
     };
     reader.readAsText(e.target.files[0]);
@@ -694,9 +664,7 @@ function renderCard(a) {
     </div>
     <div class="card-foot">
       <span>${timeAgo(a.updatedAt)}</span>
-      ${SERVER_MODE
-        ? ''
-        : `<button class="btn btn-xs" onclick="importFromLog('${a.id}')">From Log</button>`}
+      <button class="btn btn-xs" onclick="importFromLog('${a.id}')">From Log</button>
     </div>
   </div>`;
 }
@@ -757,35 +725,6 @@ function render() {
       </div>
     </div>` : '';
 
-  // Log bar (server mode only)
-  let logBar = '';
-  if (SERVER_MODE) {
-    if (!logData) {
-      logBar = `<div class="log-bar"><span class="log-bar-lbl">Log</span><span class="log-bar-err">Loading…</span></div>`;
-    } else if (logData.error || !logData.accounts) {
-      logBar = `<div class="log-bar"><span class="log-bar-lbl">Log</span><span class="log-bar-err">${esc(logData.error || 'Unknown error')}</span><button class="btn btn-xs" onclick="fetchLog()" style="margin-left:auto">Refresh</button></div>`;
-    } else {
-      const acctOptions = accounts.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
-      const rows = logData.accounts.map((la, i) => {
-        const parts = [];
-        if (la.gold      != null) parts.push(`<span class="log-bar-val c-gold">${fmt(la.gold)}g</span>`);
-        if (la.gems      != null) parts.push(`<span class="log-bar-val c-gem">${fmt(la.gems)}💎</span>`);
-        if (la.dailyWins != null) parts.push(`<span class="log-bar-val">${la.dailyWins} wins</span>`);
-        if (la.questReward != null) parts.push(`<span class="log-bar-val">Quest ${la.questReward}g ${la.questCompleted ? '✓' : '○'}</span>`);
-        const srcLabel = la.source === 'current' ? '' : `<span class="log-bar-src">prev</span>`;
-        return `<div class="log-bar-row">
-          ${srcLabel}<div class="log-bar-data">${parts.join('')}</div>
-          ${accounts.length ? `<select class="log-acct-sel" id="log-sel-${i}">${acctOptions}</select>
-          <button class="btn btn-xs" onclick="applyLogEntry(${i}, document.getElementById('log-sel-${i}').value)">Apply</button>` : ''}
-        </div>`;
-      }).join('');
-      logBar = `<div class="log-bar log-bar-multi">
-        <div class="log-bar-header"><span class="log-bar-lbl">Log</span><button class="btn btn-xs" onclick="fetchLog()">Refresh</button></div>
-        ${rows}
-      </div>`;
-    }
-  }
-
   document.getElementById('app').innerHTML = `
     <header>
       <span class="logo">MTGA Tracker</span>
@@ -793,7 +732,6 @@ function render() {
     </header>
     ${didReset ? '<div class="notice">Daily wins and quests reset (09:00 UTC)</div>' : ''}
     ${totalsBar}
-    ${logBar}
     ${banner}
     ${cards}
     <div class="io-row">
@@ -856,28 +794,6 @@ function editName(id, el) {
 }
 
 // ── Log import ───────────────────────────────────────────────────────────────
-async function fetchLog() {
-  try {
-    const res = await fetch('/api/log');
-    logData = await res.json();
-  } catch (e) {
-    logData = { error: 'Could not reach server' };
-  }
-  render();
-}
-
-function applyLog(id) {
-  if (!logData || logData.error || !logData.accounts || !logData.accounts.length) return;
-  applyLogData(id, logData.accounts[0]);
-}
-
-function applyLogEntry(logIndex, accountId) {
-  if (!logData || !logData.accounts) return;
-  const entry = logData.accounts[logIndex];
-  if (!entry) return;
-  applyLogData(accountId, entry);
-}
-
 function importFromLog(id) {
   const input = document.createElement('input');
   input.type   = 'file';
@@ -962,8 +878,7 @@ function applyLogData(id, found) {
     a.quest.completed = found.questCompleted;
   }
   a.updatedAt = Date.now();
-  save();
-  render();
+  commit();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
