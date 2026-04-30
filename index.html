@@ -476,6 +476,14 @@ function addWin(id) {
   commit();
 }
 
+function addQuest(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || a.quests >= QUEST_MAX) return;
+  a.quests++;
+  a.updatedAt = Date.now();
+  commit();
+}
+
 function completeQuest(id) {
   const a = accounts.find(a => a.id === id);
   if (!a || a.quests === 0) return;
@@ -591,14 +599,17 @@ function renderCard(a) {
   ).join('');
   const questCap = a.quests === QUEST_MAX
     ? `<span style="color:var(--orange);font-size:.75rem;font-weight:700">cap!</span>` : '';
-  const questBtn = a.quests > 0
+  const questAddBtn = a.quests < QUEST_MAX
+    ? `<button class="btn btn-xs" onclick="addQuest('${a.id}')">+</button>` : '';
+  const questCompleteBtn = a.quests > 0
     ? `<button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">+${fmt(QUEST_REWARD)}g</button>` : '';
   const questSection = `
     <div class="quest-row">
       <span class="quest-lbl">Quests</span>
       <div class="dots">${questDots}</div>
       ${questCap}
-      ${questBtn}
+      ${questAddBtn}
+      ${questCompleteBtn}
     </div>`;
 
   // draft section
