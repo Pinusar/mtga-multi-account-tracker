@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MTGA Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+
+    :root {
+      --bg:     #111;
+      --s1:     #1c1c1c;
+      --s2:     #252525;
+      --br:     #333;
+      --t:      #e8e8e8;
+      --d:      #666;
+      --green:  #22c55e;
+      --orange: #f97316;
+      --yellow: #eab308;
+      --gray:   #6b7280;
+      --gold:   #f59e0b;
+      --gem:    #a78bfa;
+      --red:    #f87171;
+      --draft:  #06b6d4;
+      --r:      10px;
+      --r2:     6px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--t);
+      font: 15px/1.4 system-ui, -apple-system, sans-serif;
+      padding-bottom: 3rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .7rem 1rem;
+      background: var(--s1);
+      border-bottom: 1px solid var(--br);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo { font-weight: 700; font-size: 1rem; letter-spacing: .04em }
+
+    /* ── Buttons ─────────────────────────────────────────────── */
+    .btn {
+      background: var(--s2);
+      border: 1px solid var(--br);
+      color: var(--t);
+      padding: .45rem .85rem;
+      border-radius: var(--r2);
+      cursor: pointer;
+      font: inherit;
+      font-size: .85rem;
+      line-height: 1;
+      touch-action: manipulation;
+      user-select: none;
+      white-space: nowrap;
+      transition: opacity .1s;
+    }
+    .btn:active { opacity: .7 }
+    .btn-primary { background: #1d4ed8; border-color: #3b82f6 }
+    .btn-green   { background: #14532d; border-color: var(--green); color: var(--green) }
+    .btn-gem     { background: #2e1065; border-color: var(--gem);   color: var(--gem) }
+    .btn-del     { color: var(--red); border-color: transparent; background: transparent; padding: .3rem .5rem; font-size: .9rem }
+    .btn-xs      { padding: .28rem .55rem; font-size: .75rem }
+    .active      { background: #1d4ed8 !important; border-color: #3b82f6 !important; color: #fff !important }
+
+    /* ── Notice ──────────────────────────────────────────────── */
+    .notice {
+      background: #1e3a5f;
+      color: #93c5fd;
+      padding: .4rem 1rem;
+      font-size: .78rem;
+      text-align: center;
+    }
+
+    /* ── Banner ──────────────────────────────────────────────── */
+    .banner {
+      margin: .75rem 1rem .25rem;
+      padding: .7rem 1rem;
+      border-radius: var(--r);
+      background: var(--s1);
+      border-left: 3px solid var(--gray);
+      display: flex;
+      flex-direction: column;
+      gap: .15rem;
+    }
+    .banner.p-0 { border-color: var(--draft) }
+    .banner.p-1 { border-color: var(--green) }
+    .banner.p-2 { border-color: var(--orange) }
+    .banner.p-3 { border-color: var(--yellow) }
+    .banner-lbl    { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--d) }
+    .banner-action { font-size: 1.05rem; font-weight: 700 }
+
+    /* ── Cards grid ──────────────────────────────────────────── */
+    .cards { padding: .5rem 1rem; display: grid; gap: .75rem }
+    @media (min-width: 680px) { .cards { grid-template-columns: 1fr 1fr } }
+
+    .card {
+      background: var(--s1);
+      border-radius: var(--r);
+      border: 1px solid var(--br);
+      overflow: hidden;
+    }
+    .card.p-1 { border-color: #166534 }
+    .card.p-2 { border-color: #7c2d12 }
+    .card.drafting { border-color: #155e75 }
+
+    /* card header */
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .55rem .75rem;
+      background: var(--s2);
+      border-bottom: 1px solid var(--br);
+    }
+    .acct-name {
+      flex: 1;
+      font-weight: 600;
+      cursor: pointer;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .acct-name:hover { text-decoration: underline dotted }
+
+    .badge {
+      font-size: .68rem;
+      font-weight: 700;
+      padding: .15rem .5rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      letter-spacing: .02em;
+    }
+    .s0 { background: #083344; color: var(--draft) }
+    .s1 { background: #052e16; color: var(--green) }
+    .s2 { background: #431407; color: var(--orange) }
+    .s3 { background: #422006; color: var(--yellow) }
+    .s4 { background: #1f2937; color: var(--gray) }
+
+    /* card body */
+    .card-body { padding: .7rem .75rem }
+
+    .stats-row {
+      display: flex;
+      gap: 1.2rem;
+      margin-bottom: .6rem;
+      align-items: flex-end;
+    }
+    .stat { display: flex; flex-direction: column; gap: .08rem }
+    .stat-lbl { font-size: .65rem; color: var(--d); text-transform: uppercase; letter-spacing: .05em }
+    .stat-val {
+      font-size: 1.1rem;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .stat-val:hover { text-decoration: underline dotted }
+    .c-gold { color: var(--gold) }
+    .c-gem  { color: var(--gem) }
+
+    /* inline edit input */
+    .inline-inp {
+      background: var(--s2);
+      border: 1px solid #3b82f6;
+      border-radius: var(--r2);
+      color: var(--t);
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: .1rem .35rem;
+      outline: none;
+      width: 85px;
+    }
+    .inline-inp.c-gold { color: var(--gold) }
+    .inline-inp.c-gem  { color: var(--gem) }
+    .inline-inp.name   { width: 140px; font-size: 1rem }
+
+    /* gold progress bar */
+    .prog-wrap {
+      background: var(--s2);
+      border-radius: 999px;
+      height: 5px;
+      overflow: hidden;
+      margin-bottom: .6rem;
+    }
+    .prog-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: #2563eb;
+      transition: width .3s;
+    }
+    .prog-fill.ready { background: var(--green) }
+
+    /* daily wins */
+    .wins-row {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      margin-bottom: .55rem;
+    }
+    .dots { display: flex; gap: 3px }
+    .dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: var(--s2);
+      border: 1.5px solid var(--br);
+    }
+    .dot.on { background: var(--green); border-color: var(--green) }
+    .wins-lbl { font-size: .78rem; color: var(--d); flex: 1 }
+
+    /* quest */
+    .quest-row {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      flex-wrap: wrap;
+      margin-bottom: .55rem;
+      min-height: 1.6rem;
+    }
+    .quest-lbl { font-size: .85rem; flex: 0 0 auto }
+    .c-green { color: var(--green) }
+    .reward-tog { display: flex; gap: 2px }
+
+    /* draft buttons */
+    .draft-row { display: flex; gap: .5rem; flex-wrap: wrap }
+    .btn-draft {
+      flex: 1;
+      padding: .5rem;
+      font-weight: 600;
+      font-size: .82rem;
+    }
+
+    /* in-draft indicator */
+    .draft-ongoing {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #083344;
+      border: 1px solid #155e75;
+      border-radius: var(--r2);
+      color: var(--draft);
+      padding: .4rem .65rem;
+      font-size: .85rem;
+      font-weight: 600;
+      margin-bottom: .1rem;
+    }
+    .btn-finish { background: #155e75; border-color: var(--draft); color: var(--draft); font-weight: 600 }
+
+    /* shortfall row */
+    .shortfall { font-size: .78rem; color: var(--d); margin-bottom: .55rem }
+
+    /* card footer */
+    .card-foot {
+      padding: .3rem .75rem;
+      border-top: 1px solid var(--br);
+      font-size: .65rem;
+      color: var(--d);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Totals bar */
+    .totals {
+      display: flex;
+      gap: 0;
+      background: var(--s1);
+      border-bottom: 1px solid var(--br);
+      padding: 0;
+    }
+    .total-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: .5rem .25rem;
+      border-right: 1px solid var(--br);
+    }
+    .total-item:last-child { border-right: none }
+    .total-lbl { font-size: .62rem; text-transform: uppercase; letter-spacing: .07em; color: var(--d); margin-bottom: .15rem }
+    .total-val { font-size: 1rem; font-weight: 700; line-height: 1 }
+
+    /* Log bar */
+    .log-bar {
+      padding: .45rem 1rem;
+      background: var(--s1);
+      border-bottom: 1px solid var(--br);
+      font-size: .78rem;
+    }
+    .log-bar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .3rem }
+    .log-bar-lbl { color: var(--d); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em }
+    .log-bar-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      flex-wrap: wrap;
+      padding: .2rem 0;
+      border-top: 1px solid var(--br);
+    }
+    .log-bar-row:first-of-type { border-top: none }
+    .log-bar-data { display: flex; gap: .6rem; flex-wrap: wrap; flex: 1 }
+    .log-bar-val { font-weight: 600 }
+    .log-bar-err { color: var(--orange) }
+    .log-bar-src { font-size: .65rem; color: var(--d); background: var(--s2); border-radius: 3px; padding: .1rem .3rem; flex-shrink: 0 }
+    .log-acct-sel {
+      background: var(--s2); border: 1px solid var(--br); border-radius: var(--r2);
+      color: var(--t); font: inherit; font-size: .75rem; padding: .2rem .4rem; outline: none;
+    }
+
+    /* IO row */
+    .io-row { padding: .6rem 1rem; display: flex; gap: .5rem }
+
+    /* Empty */
+    .empty {
+      padding: 3rem 1rem;
+      text-align: center;
+      color: var(--d);
+      font-size: .95rem;
+    }
+
+    /* Modal */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+    }
+    .modal {
+      background: var(--s1);
+      border: 1px solid var(--br);
+      border-radius: var(--r);
+      padding: 1.25rem;
+      width: 100%;
+      max-width: 320px;
+    }
+    .modal h2 { font-size: .95rem; margin-bottom: .75rem }
+    .modal-inp {
+      display: block;
+      width: 100%;
+      background: var(--s2);
+      border: 1px solid var(--br);
+      border-radius: var(--r2);
+      color: var(--t);
+      font: inherit;
+      font-size: 1rem;
+      padding: .5rem .7rem;
+      outline: none;
+      margin-bottom: .75rem;
+    }
+    .modal-inp:focus { border-color: #3b82f6 }
+    .modal-btns { display: flex; gap: .5rem; justify-content: flex-end }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const STORAGE_KEY  = 'mtga_accounts';
+const RESET_KEY    = 'mtga_last_reset';
+const DRAFT_GOLD   = 5000;
+const DRAFT_GEMS   = 750;
+const WIN_CUTOFF   = 4;
+const RESET_HOUR   = 9; // 09:00 UTC (per MTGA _dailyRewardResetTimestamp)
+
+const SERVER_MODE = window.location.protocol !== 'file:';
+
+// ── State ────────────────────────────────────────────────────────────────────
+let accounts  = [];
+let didReset  = false;
+let showModal = false;
+let logData   = null; // last result from /api/log
+
+// ── Storage ──────────────────────────────────────────────────────────────────
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+}
+
+function load() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  accounts = raw ? JSON.parse(raw) : [];
+  checkReset();
+  if (SERVER_MODE) fetchLog();
+}
+
+// ── Daily reset at 10:00 UTC ─────────────────────────────────────────────────
+function lastResetTimestamp() {
+  const now = new Date();
+  const todayReset = Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), RESET_HOUR
+  );
+  return now.getTime() >= todayReset ? todayReset : todayReset - 86400000;
+}
+
+function checkReset() {
+  const lastReset = parseInt(localStorage.getItem(RESET_KEY) || '0', 10);
+  const threshold = lastResetTimestamp();
+  if (lastReset < threshold && accounts.length > 0) {
+    accounts.forEach(a => {
+      a.dailyWins = 0;
+      a.quest.completed = false;
+    });
+    didReset = true;
+    localStorage.setItem(RESET_KEY, String(threshold));
+    save();
+  }
+}
+
+// ── Domain ───────────────────────────────────────────────────────────────────
+function canDraft(a) {
+  return !a.inDraft && (a.gold >= DRAFT_GOLD || a.gems >= DRAFT_GEMS);
+}
+
+function priority(a) {
+  if (a.dailyWins >= WIN_CUTOFF) return 4;
+  if (a.inDraft)                 return 1;
+  if (canDraft(a))               return 1;
+  if (!a.quest.completed)        return 2;
+  return 3;
+}
+
+function statusFor(a) {
+  if (a.inDraft && a.dailyWins < WIN_CUTOFF) return { lbl: '⚔ Drafting', cls: 's0' };
+  const p = priority(a);
+  if (p === 1) return { lbl: 'Draft now!',     cls: 's1' };
+  if (p === 2) return { lbl: 'Complete quest',  cls: 's2' };
+  if (p === 3) return { lbl: `${WIN_CUTOFF - a.dailyWins} wins left`, cls: 's3' };
+  return { lbl: a.inDraft ? 'Draft: resume tomorrow' : 'Done today', cls: 's4' };
+}
+
+function bannerFor(a) {
+  const n = esc(a.name);
+  if (a.inDraft && a.dailyWins < WIN_CUTOFF) return { text: `Continue draft on <strong>${n}</strong>`, color: 'var(--draft)', p: 0 };
+  const p = priority(a);
+  if (p === 1) return { text: `Draft on <strong>${n}</strong>`, color: 'var(--green)', p };
+  if (p === 2) return { text: `Complete quest on <strong>${n}</strong>`, color: 'var(--orange)', p };
+  if (p === 3) return { text: `Play <strong>${n}</strong> — ${WIN_CUTOFF - a.dailyWins} wins left`, color: 'var(--yellow)', p };
+  return { text: 'All done for today!', color: 'var(--gray)', p: 4 };
+}
+
+function sorted() {
+  return [...accounts].sort((a, b) => {
+    const pa = priority(a), pb = priority(b);
+    if (pa !== pb) return pa - pb;
+    // within p=1, inDraft accounts first
+    if (pa === 1 && a.inDraft !== b.inDraft) return a.inDraft ? -1 : 1;
+    return b.gold - a.gold;
+  });
+}
+
+// ── CRUD & actions ───────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
+
+function addAccount(name) {
+  accounts.push({
+    id: uid(),
+    name: name.trim(),
+    gold: 0,
+    gems: 0,
+    dailyWins: 0,
+    inDraft: false,
+    quest: { reward: 750, completed: false },
+    updatedAt: Date.now(),
+  });
+  save(); render();
+}
+
+function removeAccount(id) {
+  if (!confirm('Remove this account?')) return;
+  accounts = accounts.filter(a => a.id !== id);
+  save(); render();
+}
+
+function touch(id) {
+  const a = accounts.find(a => a.id === id);
+  if (a) { a.updatedAt = Date.now(); save(); }
+}
+
+function setField(id, field, val) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  a[field] = val;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function setGold(id, val) { setField(id, 'gold', Math.max(0, parseInt(val) || 0)); }
+function setGems(id, val) { setField(id, 'gems', Math.max(0, parseInt(val) || 0)); }
+function setName(id, val) { if (val.trim()) setField(id, 'name', val.trim()); else render(); }
+
+function addWin(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  a.dailyWins = Math.min(a.dailyWins + 1, 15);
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function completeQuest(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || a.quest.completed) return;
+  a.quest.completed = true;
+  a.gold += a.quest.reward;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function undoQuest(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || !a.quest.completed) return;
+  a.quest.completed = false;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function setQuestReward(id, reward) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  a.quest.reward = reward;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function draftGold(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || a.gold < DRAFT_GOLD || a.inDraft) return;
+  a.gold -= DRAFT_GOLD;
+  a.dailyWins = 0;
+  a.inDraft = true;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function draftGems(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || a.gems < DRAFT_GEMS || a.inDraft) return;
+  a.gems -= DRAFT_GEMS;
+  a.dailyWins = 0;
+  a.inDraft = true;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+function finishDraft(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  a.inDraft = false;
+  a.updatedAt = Date.now();
+  save(); render();
+}
+
+// ── Import / Export ───────────────────────────────────────────────────────────
+function exportData() {
+  const blob = new Blob([JSON.stringify(accounts, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'mtga-tracker.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData() {
+  const input   = document.createElement('input');
+  input.type    = 'file';
+  input.accept  = '.json,application/json';
+  input.onchange = e => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data)) throw new Error();
+        accounts = data;
+        save(); render();
+      } catch { alert('Invalid JSON file'); }
+    };
+    reader.readAsText(e.target.files[0]);
+  };
+  input.click();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt(n) { return Number(n).toLocaleString(); }
+
+function timeAgo(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m <  1)    return 'just now';
+  if (m <  60)   return `${m}m ago`;
+  if (m < 1440)  return `${Math.floor(m / 60)}h ago`;
+  return `${Math.floor(m / 1440)}d ago`;
+}
+
+// ── Render helpers ───────────────────────────────────────────────────────────
+function renderCard(a) {
+  const { lbl, cls } = statusFor(a);
+  const p            = priority(a);
+
+  // gold progress bar
+  const goldPct   = Math.min(100, (a.gold / DRAFT_GOLD) * 100);
+  const barClass  = a.gold >= DRAFT_GOLD ? 'ready' : '';
+
+  // shortfall text
+  let shortfall = '';
+  if (!canDraft(a)) {
+    const parts = [];
+    if (a.gold < DRAFT_GOLD) parts.push(`${fmt(DRAFT_GOLD - a.gold)}g to draft`);
+    if (a.gems < DRAFT_GEMS) parts.push(`${fmt(DRAFT_GEMS - a.gems)} gems to draft`);
+    shortfall = `<div class="shortfall">${parts.join(' · ')}</div>`;
+  }
+
+  // win dots
+  let dots = '';
+  for (let i = 0; i < WIN_CUTOFF; i++) {
+    dots += `<span class="dot${i < a.dailyWins ? ' on' : ''}"></span>`;
+  }
+  const winsLabel = a.dailyWins >= WIN_CUTOFF
+    ? `<span style="color:var(--green);font-size:.78rem">✓ done</span>`
+    : `<span class="wins-lbl">${WIN_CUTOFF - a.dailyWins} left</span>`;
+
+  // quest
+  const questState = a.quest.completed
+    ? `<span class="quest-lbl c-green">Quest ✓</span>
+       <button class="btn btn-xs" onclick="undoQuest('${a.id}')">Undo</button>`
+    : `<span class="quest-lbl">Quest ○</span>
+       <span class="reward-tog">
+         <button class="btn btn-xs${a.quest.reward === 500 ? ' active' : ''}" onclick="setQuestReward('${a.id}',500)">500g</button>
+         <button class="btn btn-xs${a.quest.reward === 750 ? ' active' : ''}" onclick="setQuestReward('${a.id}',750)">750g</button>
+       </span>
+       <button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">+${fmt(a.quest.reward)}g</button>`;
+
+  // draft section
+  let draftSection = '';
+  if (a.inDraft) {
+    const draftNote = a.dailyWins >= WIN_CUTOFF ? ' · resume tomorrow' : '';
+    draftSection = `
+      <div class="draft-ongoing">
+        <span>⚔ Draft in progress${draftNote}</span>
+        <button class="btn btn-xs btn-finish" onclick="finishDraft('${a.id}')">Finish</button>
+      </div>`;
+  } else {
+    const btns = [
+      a.gold >= DRAFT_GOLD
+        ? `<button class="btn btn-green btn-draft" onclick="draftGold('${a.id}')">⚔ Draft (5,000g)</button>`
+        : '',
+      a.gems >= DRAFT_GEMS
+        ? `<button class="btn btn-gem btn-draft" onclick="draftGems('${a.id}')">⚔ Draft (750💎)</button>`
+        : '',
+    ].join('');
+    if (btns) draftSection = `<div class="draft-row">${btns}</div>`;
+  }
+
+  return `
+  <div class="card${a.inDraft ? ' drafting' : ` p-${p}`}">
+    <div class="card-top">
+      <span class="acct-name" onclick="editName('${a.id}',this)" title="Click to rename">${esc(a.name)}</span>
+      <span class="badge ${cls}">${lbl}</span>
+      <button class="btn btn-del" onclick="removeAccount('${a.id}')" title="Remove">✕</button>
+    </div>
+    <div class="card-body">
+      <div class="stats-row">
+        <div class="stat">
+          <span class="stat-lbl">Gold</span>
+          <span class="stat-val c-gold" onclick="editGold('${a.id}',this)" title="Click to edit">${fmt(a.gold)}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-lbl">Gems</span>
+          <span class="stat-val c-gem" onclick="editGems('${a.id}',this)" title="Click to edit">${fmt(a.gems)}</span>
+        </div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-fill ${barClass}" style="width:${goldPct}%"></div>
+      </div>
+      ${shortfall}
+      <div class="wins-row">
+        <div class="dots">${dots}</div>
+        ${winsLabel}
+        <button class="btn btn-xs btn-green" style="margin-left:auto" onclick="addWin('${a.id}')">+1 Win</button>
+      </div>
+      <div class="quest-row">${questState}</div>
+      ${draftSection}
+    </div>
+    <div class="card-foot">
+      <span>${timeAgo(a.updatedAt)}</span>
+      ${SERVER_MODE
+        ? ''
+        : `<button class="btn btn-xs" onclick="importFromLog('${a.id}')">From Log</button>`}
+    </div>
+  </div>`;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  const list  = sorted();
+  const best  = list[0];
+
+  // banner
+  let banner = '';
+  if (best) {
+    const { text, color, p } = bannerFor(best);
+    banner = `
+      <div class="banner p-${p}">
+        <span class="banner-lbl">What to do now</span>
+        <span class="banner-action" style="color:${color}">${text}</span>
+      </div>`;
+  }
+
+  // cards
+  const cards = list.length
+    ? `<div class="cards">${list.map(renderCard).join('')}</div>`
+    : `<div class="empty">No accounts yet — add one above</div>`;
+
+  // modal
+  const modal = showModal ? `
+    <div class="overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h2>Add Account</h2>
+        <input class="modal-inp" id="modal-inp" type="text" placeholder="Account name"
+          autocomplete="off"
+          onkeydown="if(event.key==='Enter')submitModal();if(event.key==='Escape')closeModal()">
+        <div class="modal-btns">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitModal()">Add</button>
+        </div>
+      </div>
+    </div>` : '';
+
+  const totalGold   = accounts.reduce((s, a) => s + a.gold, 0);
+  const totalGems   = accounts.reduce((s, a) => s + a.gems, 0);
+  const totalDrafts = accounts.reduce((s, a) => s + Math.floor(a.gold / DRAFT_GOLD) + Math.floor(a.gems / DRAFT_GEMS), 0);
+
+  const totalsBar = accounts.length ? `
+    <div class="totals">
+      <div class="total-item">
+        <span class="total-lbl">Total Gold</span>
+        <span class="total-val c-gold">${fmt(totalGold)}</span>
+      </div>
+      <div class="total-item">
+        <span class="total-lbl">Total Gems</span>
+        <span class="total-val c-gem">${fmt(totalGems)}</span>
+      </div>
+      <div class="total-item">
+        <span class="total-lbl">Drafts Ready</span>
+        <span class="total-val" style="color:${totalDrafts > 0 ? 'var(--green)' : 'var(--d)'}">${totalDrafts}</span>
+      </div>
+    </div>` : '';
+
+  // Log bar (server mode only)
+  let logBar = '';
+  if (SERVER_MODE) {
+    if (!logData) {
+      logBar = `<div class="log-bar"><span class="log-bar-lbl">Log</span><span class="log-bar-err">Loading…</span></div>`;
+    } else if (logData.error || !logData.accounts) {
+      logBar = `<div class="log-bar"><span class="log-bar-lbl">Log</span><span class="log-bar-err">${esc(logData.error || 'Unknown error')}</span><button class="btn btn-xs" onclick="fetchLog()" style="margin-left:auto">Refresh</button></div>`;
+    } else {
+      const acctOptions = accounts.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+      const rows = logData.accounts.map((la, i) => {
+        const parts = [];
+        if (la.gold      != null) parts.push(`<span class="log-bar-val c-gold">${fmt(la.gold)}g</span>`);
+        if (la.gems      != null) parts.push(`<span class="log-bar-val c-gem">${fmt(la.gems)}💎</span>`);
+        if (la.dailyWins != null) parts.push(`<span class="log-bar-val">${la.dailyWins} wins</span>`);
+        if (la.questReward != null) parts.push(`<span class="log-bar-val">Quest ${la.questReward}g ${la.questCompleted ? '✓' : '○'}</span>`);
+        const srcLabel = la.source === 'current' ? '' : `<span class="log-bar-src">prev</span>`;
+        return `<div class="log-bar-row">
+          ${srcLabel}<div class="log-bar-data">${parts.join('')}</div>
+          ${accounts.length ? `<select class="log-acct-sel" id="log-sel-${i}">${acctOptions}</select>
+          <button class="btn btn-xs" onclick="applyLogEntry(${i}, document.getElementById('log-sel-${i}').value)">Apply</button>` : ''}
+        </div>`;
+      }).join('');
+      logBar = `<div class="log-bar log-bar-multi">
+        <div class="log-bar-header"><span class="log-bar-lbl">Log</span><button class="btn btn-xs" onclick="fetchLog()">Refresh</button></div>
+        ${rows}
+      </div>`;
+    }
+  }
+
+  document.getElementById('app').innerHTML = `
+    <header>
+      <span class="logo">MTGA Tracker</span>
+      <button class="btn btn-primary" onclick="openModal()">+ Account</button>
+    </header>
+    ${didReset ? '<div class="notice">Daily wins and quests reset (09:00 UTC)</div>' : ''}
+    ${totalsBar}
+    ${logBar}
+    ${banner}
+    ${cards}
+    <div class="io-row">
+      <button class="btn btn-xs" onclick="exportData()">Export JSON</button>
+      <button class="btn btn-xs" onclick="importData()">Import JSON</button>
+    </div>
+    ${modal}`;
+
+  if (showModal) {
+    const inp = document.getElementById('modal-inp');
+    if (inp) inp.focus();
+  }
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal()  { showModal = true;  render(); }
+function closeModal() { showModal = false; render(); }
+function submitModal() {
+  const inp = document.getElementById('modal-inp');
+  if (!inp || !inp.value.trim()) return;
+  showModal = false;
+  addAccount(inp.value);
+}
+
+// ── Inline editors ────────────────────────────────────────────────────────────
+function makeInlineInput(type, cssClass, currentVal, onCommit) {
+  const inp = document.createElement('input');
+  inp.type      = type === 'text' ? 'text' : 'number';
+  inp.min       = '0';
+  inp.value     = currentVal;
+  inp.className = 'inline-inp ' + cssClass;
+  const commit = () => onCommit(inp.value);
+  inp.addEventListener('blur',    commit);
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') render();
+  });
+  return inp;
+}
+
+function editGold(id, el) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  const inp = makeInlineInput('number', 'c-gold', a.gold, v => setGold(id, v));
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
+
+function editGems(id, el) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  const inp = makeInlineInput('number', 'c-gem', a.gems, v => setGems(id, v));
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
+
+function editName(id, el) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+  const inp = makeInlineInput('text', 'name', a.name, v => setName(id, v));
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
+
+// ── Log import ───────────────────────────────────────────────────────────────
+async function fetchLog() {
+  try {
+    const res = await fetch('/api/log');
+    logData = await res.json();
+  } catch (e) {
+    logData = { error: 'Could not reach server' };
+  }
+  render();
+}
+
+function applyLog(id) {
+  if (!logData || logData.error || !logData.accounts || !logData.accounts.length) return;
+  applyLogData(id, logData.accounts[0]);
+}
+
+function applyLogEntry(logIndex, accountId) {
+  if (!logData || !logData.accounts) return;
+  const entry = logData.accounts[logIndex];
+  if (!entry) return;
+  applyLogData(accountId, entry);
+}
+
+function importFromLog(id) {
+  const input = document.createElement('input');
+  input.type   = 'file';
+  input.accept = '.log,.txt,*';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => parseLogAndApply(id, ev.target.result);
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function parseMTGALog(text) {
+  const result = { gold: null, gems: null, dailyWins: null, questReward: null, questCompleted: false };
+
+  for (const line of text.split('\n')) {
+    // Inventory — InventoryInfo uses capital Gold/Gems. Take last occurrence.
+    const gld = line.match(/"Gold"\s*:\s*(\d+)/);
+    const gem = line.match(/"Gems"\s*:\s*(\d+)/);
+    if (gld && gem) {
+      result.gold = parseInt(gld[1], 10);
+      result.gems = parseInt(gem[1], 10);
+    }
+
+    // Daily wins — number of daily win-rewards claimed this reset period.
+    const wins = line.match(/"_dailyRewardSequenceId"\s*:\s*(\d+)/);
+    if (wins) result.dailyWins = parseInt(wins[1], 10);
+
+    // Quests — gold reward is in chestDescription "quantity"; completion via endingProgress >= goal.
+    if (line.includes('"quests"')) {
+      const quantities = [...line.matchAll(/"quantity"\s*:\s*"(\d+)"/g)];
+      const progresses = [...line.matchAll(/"endingProgress"\s*:\s*(\d+)/g)];
+      const goals      = [...line.matchAll(/"goal"\s*:\s*(\d+)/g)];
+      if (quantities.length) {
+        const reward = parseInt(quantities[0][1], 10);
+        if (reward === 500 || reward === 750) result.questReward = reward;
+      }
+      if (progresses.length && goals.length) {
+        result.questCompleted = parseInt(progresses[0][1], 10) >= parseInt(goals[0][1], 10);
+      }
+    }
+  }
+
+  return result;
+}
+
+function parseLogAndApply(id, text) {
+  applyLogData(id, parseMTGALog(text));
+}
+
+function applyLogData(id, found) {
+  const a = accounts.find(a => a.id === id);
+  if (!a) return;
+
+  if (found.gold === null && found.gems === null) {
+    alert(
+      'Could not find inventory data in this log.\n\n' +
+      'Make sure "Detailed Logs (Plugin Support)" is enabled\nin MTGA Settings → Account.'
+    );
+    return;
+  }
+
+  const lines = ['Parsed from log:'];
+  if (found.gold       !== null) lines.push(`  Gold: ${fmt(found.gold)}`);
+  if (found.gems       !== null) lines.push(`  Gems: ${fmt(found.gems)}`);
+  if (found.dailyWins  !== null) lines.push(`  Daily wins: ${found.dailyWins}`);
+  if (found.questReward !== null)
+    lines.push(`  Quest: ${found.questReward}g (${found.questCompleted ? 'complete' : 'incomplete'})`);
+  else
+    lines.push('  Quest: not found in log');
+  lines.push(`\nApply to "${a.name}"?`);
+
+  if (!confirm(lines.join('\n'))) return;
+
+  if (found.gold      !== null) a.gold      = found.gold;
+  if (found.gems      !== null) a.gems      = found.gems;
+  if (found.dailyWins !== null) a.dailyWins = Math.min(found.dailyWins, 15);
+  if (found.questReward !== null) {
+    a.quest.reward    = found.questReward;
+    a.quest.completed = found.questCompleted;
+  }
+  a.updatedAt = Date.now();
+  save();
+  render();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+load();
+render();
+</script>
+</body>
+</html>
