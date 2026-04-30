@@ -676,7 +676,6 @@ function renderCard(a) {
     </div>
     <div class="card-foot">
       <span>${timeAgo(a.updatedAt)}</span>
-      <button class="btn btn-xs" onclick="importFromLog('${a.id}')">From Log</button>
     </div>
   </div>`;
 }
@@ -765,7 +764,6 @@ function render() {
             <li><b>+Win</b> — record a win (adds gold automatically)</li>
             <li><b>+</b> / <b>Complete quest</b> — add or complete a quest</li>
             <li><b>Draft (5,000g / 750💎)</b> — enter a draft, deducts the cost</li>
-            <li><b>From Log</b> — import gold, gems, and wins from your MTGA log file</li>
           </ul>
 
           <h3>Data</h3>
@@ -850,72 +848,6 @@ function editName(id, el) {
   if (!a) return;
   const inp = makeInlineInput('text', 'name', a.name, v => setName(id, v));
   el.replaceWith(inp); inp.focus(); inp.select();
-}
-
-// ── Log import ───────────────────────────────────────────────────────────────
-function importFromLog(id) {
-  const input = document.createElement('input');
-  input.type   = 'file';
-  input.accept = '.log,.txt,*';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => parseLogAndApply(id, ev.target.result);
-    reader.readAsText(file);
-  };
-  input.click();
-}
-
-function parseMTGALog(text) {
-  const result = { gold: null, gems: null, dailyWins: null };
-
-  for (const line of text.split('\n')) {
-    // Inventory — InventoryInfo uses capital Gold/Gems. Take last occurrence.
-    const gld = line.match(/"Gold"\s*:\s*(\d+)/);
-    const gem = line.match(/"Gems"\s*:\s*(\d+)/);
-    if (gld && gem) {
-      result.gold = parseInt(gld[1], 10);
-      result.gems = parseInt(gem[1], 10);
-    }
-
-    // Daily wins — number of daily win-rewards claimed this reset period.
-    const wins = line.match(/"_dailyRewardSequenceId"\s*:\s*(\d+)/);
-    if (wins) result.dailyWins = parseInt(wins[1], 10);
-  }
-
-  return result;
-}
-
-function parseLogAndApply(id, text) {
-  applyLogData(id, parseMTGALog(text));
-}
-
-function applyLogData(id, found) {
-  const a = accounts.find(a => a.id === id);
-  if (!a) return;
-
-  if (found.gold === null && found.gems === null) {
-    alert(
-      'Could not find inventory data in this log.\n\n' +
-      'Make sure "Detailed Logs (Plugin Support)" is enabled\nin MTGA Settings → Account.'
-    );
-    return;
-  }
-
-  const lines = ['Parsed from log:'];
-  if (found.gold      !== null) lines.push(`  Gold: ${fmt(found.gold)}`);
-  if (found.gems      !== null) lines.push(`  Gems: ${fmt(found.gems)}`);
-  if (found.dailyWins !== null) lines.push(`  Daily wins: ${found.dailyWins}`);
-  lines.push(`\nApply to "${a.name}"?`);
-
-  if (!confirm(lines.join('\n'))) return;
-
-  if (found.gold      !== null) a.gold      = found.gold;
-  if (found.gems      !== null) a.gems      = found.gems;
-  if (found.dailyWins !== null) a.dailyWins = Math.min(found.dailyWins, 15);
-  a.updatedAt = Date.now();
-  commit();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
