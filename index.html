@@ -312,7 +312,14 @@
       width: 100%;
       max-width: 320px;
     }
+    .modal.help { max-width: 480px }
     .modal h2 { font-size: .95rem; margin-bottom: .75rem }
+    .help-body { font-size: .85rem; line-height: 1.6; color: var(--t) }
+    .help-body h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--d); margin: .9rem 0 .3rem }
+    .help-body h3:first-child { margin-top: 0 }
+    .help-body ul { padding-left: 1.1rem }
+    .help-body li { margin-bottom: .2rem }
+    .help-body b { color: #fff }
     .modal-inp {
       display: block;
       width: 100%;
@@ -348,6 +355,7 @@ const RESET_HOUR   = 9; // 09:00 UTC (per MTGA _dailyRewardResetTimestamp)
 let accounts  = [];
 let didReset  = false;
 let showModal = false;
+let showHelp  = false;
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 function save() {
@@ -363,6 +371,7 @@ function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   accounts = raw ? JSON.parse(raw) : [];
   accounts.forEach(a => { if (a.quests == null) a.quests = 0; });
+  if (!raw) showHelp = true;
   checkReset();
 }
 
@@ -728,10 +737,53 @@ function render() {
       </div>
     </div>` : '';
 
+  const helpModal = showHelp ? `
+    <div class="overlay" onclick="if(event.target===this)closeHelp()">
+      <div class="modal help">
+        <h2>MTGA Multi-Account Tracker</h2>
+        <div class="help-body">
+          <p>Track gold, gems, quests, and draft readiness across all your MTGA accounts. The banner at the top always tells you which account to play next.</p>
+
+          <h3>Daily routine</h3>
+          <ul>
+            <li>Each account earns <b>win rewards</b>: 250g → 100g → 100g → 100g (4 wins)</li>
+            <li>Each day you receive <b>1 new quest</b> (max 3 stored). Complete one for +500g.</li>
+            <li>Draft costs <b>5,000g</b> or <b>750 gems</b>.</li>
+          </ul>
+
+          <h3>Priority — what to do next</h3>
+          <ul>
+            <li><b style="color:var(--orange)">Quest cap</b> + can draft — most urgent: start draft now</li>
+            <li><b style="color:var(--green)">Draft now!</b> — enough gold or gems to enter</li>
+            <li><b style="color:var(--yellow)">X wins left</b> — play to earn daily gold</li>
+          </ul>
+
+          <h3>Buttons</h3>
+          <ul>
+            <li><b>+ Account</b> — add a new account</li>
+            <li>Click <b>gold or gems</b> to edit the value directly</li>
+            <li><b>+Win</b> — record a win (adds gold automatically)</li>
+            <li><b>+</b> / <b>Complete quest</b> — add or complete a quest</li>
+            <li><b>Draft (5,000g / 750💎)</b> — enter a draft, deducts the cost</li>
+            <li><b>From Log</b> — import gold, gems, and wins from your MTGA log file</li>
+          </ul>
+
+          <h3>Data</h3>
+          <p>Everything is saved locally in your browser. Use <b>Export / Import JSON</b> at the bottom to back up or move between devices.</p>
+        </div>
+        <div class="modal-btns" style="margin-top:1rem">
+          <button class="btn btn-primary" onclick="closeHelp()">Got it</button>
+        </div>
+      </div>
+    </div>` : '';
+
   document.getElementById('app').innerHTML = `
     <header>
       <span class="logo">MTGA Tracker</span>
-      <button class="btn btn-primary" onclick="openModal()">+ Account</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-xs" onclick="openHelp()" title="Help">?</button>
+        <button class="btn btn-primary" onclick="openModal()">+ Account</button>
+      </div>
     </header>
     ${didReset ? '<div class="notice">Daily wins reset (09:00 UTC)</div>' : ''}
     ${totalsBar}
@@ -741,7 +793,8 @@ function render() {
       <button class="btn btn-xs" onclick="exportData()">Export JSON</button>
       <button class="btn btn-xs" onclick="importData()">Import JSON</button>
     </div>
-    ${modal}`;
+    ${modal}
+    ${helpModal}`;
 
   if (showModal) {
     const inp = document.getElementById('modal-inp');
@@ -752,6 +805,9 @@ function render() {
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function openModal()  { showModal = true;  render(); }
 function closeModal() { showModal = false; render(); }
+
+function openHelp()  { showHelp = true;  render(); }
+function closeHelp() { showHelp = false; render(); }
 function submitModal() {
   const inp = document.getElementById('modal-inp');
   if (!inp || !inp.value.trim()) return;
