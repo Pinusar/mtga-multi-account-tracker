@@ -330,6 +330,7 @@ const RESET_KEY    = 'mtga_last_reset';
 const DRAFT_GOLD   = 5000;
 const DRAFT_GEMS   = 750;
 const WIN_CUTOFF   = 4;
+const WIN_REWARDS  = [250, 100, 100, 100]; // gold per win, in order
 const RESET_HOUR   = 9; // 09:00 UTC (per MTGA _dailyRewardResetTimestamp)
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -450,8 +451,9 @@ function setName(id, val) { if (val.trim()) setField(id, 'name', val.trim()); el
 
 function addWin(id) {
   const a = accounts.find(a => a.id === id);
-  if (!a) return;
-  a.dailyWins = Math.min(a.dailyWins + 1, 15);
+  if (!a || a.dailyWins >= WIN_CUTOFF) return;
+  a.gold += WIN_REWARDS[a.dailyWins];
+  a.dailyWins++;
   a.updatedAt = Date.now();
   commit();
 }
@@ -602,7 +604,9 @@ function renderCard(a) {
       <div class="wins-row">
         <div class="dots">${dots}</div>
         ${winsLabel}
-        <button class="btn btn-xs btn-green" style="margin-left:auto" onclick="addWin('${a.id}')">+1 Win</button>
+        ${a.dailyWins < WIN_CUTOFF
+          ? `<button class="btn btn-xs btn-green" style="margin-left:auto" onclick="addWin('${a.id}')">+Win (+${fmt(WIN_REWARDS[a.dailyWins])}g)</button>`
+          : ''}
       </div>
       ${draftSection}
     </div>
