@@ -303,6 +303,7 @@
       display: flex; align-items: center; justify-content: center;
       z-index: 100;
       padding: 1rem;
+      overflow-y: auto;
     }
     .modal {
       background: var(--s1);
@@ -312,7 +313,12 @@
       width: 100%;
       max-width: 320px;
     }
-    .modal.help { max-width: 480px }
+    .modal.help {
+      max-width: 480px;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
     .modal h2 { font-size: .95rem; margin-bottom: .75rem }
     .help-body { font-size: .85rem; line-height: 1.6; color: var(--t) }
     .help-body h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--d); margin: .9rem 0 .3rem }
