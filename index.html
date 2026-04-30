@@ -377,7 +377,6 @@ function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   accounts = raw ? JSON.parse(raw) : [];
   accounts.forEach(a => { if (a.quests == null) a.quests = 0; });
-  if (!raw) showHelp = true;
   checkReset();
 }
 
