@@ -217,19 +217,6 @@
     .dot.on { background: var(--green); border-color: var(--green) }
     .wins-lbl { font-size: .78rem; color: var(--d); flex: 1 }
 
-    /* quest */
-    .quest-row {
-      display: flex;
-      align-items: center;
-      gap: .4rem;
-      flex-wrap: wrap;
-      margin-bottom: .55rem;
-      min-height: 1.6rem;
-    }
-    .quest-lbl { font-size: .85rem; flex: 0 0 auto }
-    .c-green { color: var(--green) }
-    .reward-tog { display: flex; gap: 2px }
-
     /* draft buttons */
     .draft-row { display: flex; gap: .5rem; flex-wrap: wrap }
     .btn-draft {
@@ -381,7 +368,6 @@ function checkReset() {
   if (lastReset < threshold && accounts.length > 0) {
     accounts.forEach(a => {
       a.dailyWins = 0;
-      a.quest.completed = false;
     });
     didReset = true;
     localStorage.setItem(RESET_KEY, String(threshold));
@@ -395,19 +381,17 @@ function canDraft(a) {
 }
 
 function priority(a) {
-  if (a.dailyWins >= WIN_CUTOFF) return 4;
+  if (a.dailyWins >= WIN_CUTOFF) return 3;
   if (a.inDraft)                 return 1;
   if (canDraft(a))               return 1;
-  if (!a.quest.completed)        return 2;
-  return 3;
+  return 2;
 }
 
 function statusFor(a) {
   if (a.inDraft && a.dailyWins < WIN_CUTOFF) return { lbl: '⚔ Drafting', cls: 's0' };
   const p = priority(a);
   if (p === 1) return { lbl: 'Draft now!',     cls: 's1' };
-  if (p === 2) return { lbl: 'Complete quest',  cls: 's2' };
-  if (p === 3) return { lbl: `${WIN_CUTOFF - a.dailyWins} wins left`, cls: 's3' };
+  if (p === 2) return { lbl: `${WIN_CUTOFF - a.dailyWins} wins left`, cls: 's3' };
   return { lbl: a.inDraft ? 'Draft: resume tomorrow' : 'Done today', cls: 's4' };
 }
 
@@ -416,9 +400,8 @@ function bannerFor(a) {
   if (a.inDraft && a.dailyWins < WIN_CUTOFF) return { text: `Continue draft on <strong>${n}</strong>`, color: 'var(--draft)', p: 0 };
   const p = priority(a);
   if (p === 1) return { text: `Draft on <strong>${n}</strong>`, color: 'var(--green)', p };
-  if (p === 2) return { text: `Complete quest on <strong>${n}</strong>`, color: 'var(--orange)', p };
-  if (p === 3) return { text: `Play <strong>${n}</strong> — ${WIN_CUTOFF - a.dailyWins} wins left`, color: 'var(--yellow)', p };
-  return { text: 'All done for today!', color: 'var(--gray)', p: 4 };
+  if (p === 2) return { text: `Play <strong>${n}</strong> — ${WIN_CUTOFF - a.dailyWins} wins left`, color: 'var(--yellow)', p };
+  return { text: 'All done for today!', color: 'var(--gray)', p: 3 };
 }
 
 function sorted() {
@@ -442,7 +425,6 @@ function addAccount(name) {
     gems: 0,
     dailyWins: 0,
     inDraft: false,
-    quest: { reward: 750, completed: false },
     updatedAt: Date.now(),
   });
   commit();
@@ -470,32 +452,6 @@ function addWin(id) {
   const a = accounts.find(a => a.id === id);
   if (!a) return;
   a.dailyWins = Math.min(a.dailyWins + 1, 15);
-  a.updatedAt = Date.now();
-  commit();
-}
-
-function completeQuest(id) {
-  const a = accounts.find(a => a.id === id);
-  if (!a || a.quest.completed) return;
-  a.quest.completed = true;
-  a.gold += a.quest.reward;
-  a.updatedAt = Date.now();
-  commit();
-}
-
-function undoQuest(id) {
-  const a = accounts.find(a => a.id === id);
-  if (!a || !a.quest.completed) return;
-  a.quest.completed = false;
-  a.gold = Math.max(0, a.gold - a.quest.reward);
-  a.updatedAt = Date.now();
-  commit();
-}
-
-function setQuestReward(id, reward) {
-  const a = accounts.find(a => a.id === id);
-  if (!a) return;
-  a.quest.reward = reward;
   a.updatedAt = Date.now();
   commit();
 }
@@ -600,17 +556,6 @@ function renderCard(a) {
     ? `<span style="color:var(--green);font-size:.78rem">✓ done</span>`
     : `<span class="wins-lbl">${WIN_CUTOFF - a.dailyWins} left</span>`;
 
-  // quest
-  const questState = a.quest.completed
-    ? `<span class="quest-lbl c-green">Quest ✓</span>
-       <button class="btn btn-xs" onclick="undoQuest('${a.id}')">Undo</button>`
-    : `<span class="quest-lbl">Quest ○</span>
-       <span class="reward-tog">
-         <button class="btn btn-xs${a.quest.reward === 500 ? ' active' : ''}" onclick="setQuestReward('${a.id}',500)">500g</button>
-         <button class="btn btn-xs${a.quest.reward === 750 ? ' active' : ''}" onclick="setQuestReward('${a.id}',750)">750g</button>
-       </span>
-       <button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">+${fmt(a.quest.reward)}g</button>`;
-
   // draft section
   let draftSection = '';
   if (a.inDraft) {
@@ -659,7 +604,6 @@ function renderCard(a) {
         ${winsLabel}
         <button class="btn btn-xs btn-green" style="margin-left:auto" onclick="addWin('${a.id}')">+1 Win</button>
       </div>
-      <div class="quest-row">${questState}</div>
       ${draftSection}
     </div>
     <div class="card-foot">
@@ -730,7 +674,7 @@ function render() {
       <span class="logo">MTGA Tracker</span>
       <button class="btn btn-primary" onclick="openModal()">+ Account</button>
     </header>
-    ${didReset ? '<div class="notice">Daily wins and quests reset (09:00 UTC)</div>' : ''}
+    ${didReset ? '<div class="notice">Daily wins reset (09:00 UTC)</div>' : ''}
     ${totalsBar}
     ${banner}
     ${cards}
@@ -809,7 +753,7 @@ function importFromLog(id) {
 }
 
 function parseMTGALog(text) {
-  const result = { gold: null, gems: null, dailyWins: null, questReward: null, questCompleted: false };
+  const result = { gold: null, gems: null, dailyWins: null };
 
   for (const line of text.split('\n')) {
     // Inventory — InventoryInfo uses capital Gold/Gems. Take last occurrence.
@@ -823,20 +767,6 @@ function parseMTGALog(text) {
     // Daily wins — number of daily win-rewards claimed this reset period.
     const wins = line.match(/"_dailyRewardSequenceId"\s*:\s*(\d+)/);
     if (wins) result.dailyWins = parseInt(wins[1], 10);
-
-    // Quests — gold reward is in chestDescription "quantity"; completion via endingProgress >= goal.
-    if (line.includes('"quests"')) {
-      const quantities = [...line.matchAll(/"quantity"\s*:\s*"(\d+)"/g)];
-      const progresses = [...line.matchAll(/"endingProgress"\s*:\s*(\d+)/g)];
-      const goals      = [...line.matchAll(/"goal"\s*:\s*(\d+)/g)];
-      if (quantities.length) {
-        const reward = parseInt(quantities[0][1], 10);
-        if (reward === 500 || reward === 750) result.questReward = reward;
-      }
-      if (progresses.length && goals.length) {
-        result.questCompleted = parseInt(progresses[0][1], 10) >= parseInt(goals[0][1], 10);
-      }
-    }
   }
 
   return result;
@@ -859,13 +789,9 @@ function applyLogData(id, found) {
   }
 
   const lines = ['Parsed from log:'];
-  if (found.gold       !== null) lines.push(`  Gold: ${fmt(found.gold)}`);
-  if (found.gems       !== null) lines.push(`  Gems: ${fmt(found.gems)}`);
-  if (found.dailyWins  !== null) lines.push(`  Daily wins: ${found.dailyWins}`);
-  if (found.questReward !== null)
-    lines.push(`  Quest: ${found.questReward}g (${found.questCompleted ? 'complete' : 'incomplete'})`);
-  else
-    lines.push('  Quest: not found in log');
+  if (found.gold      !== null) lines.push(`  Gold: ${fmt(found.gold)}`);
+  if (found.gems      !== null) lines.push(`  Gems: ${fmt(found.gems)}`);
+  if (found.dailyWins !== null) lines.push(`  Daily wins: ${found.dailyWins}`);
   lines.push(`\nApply to "${a.name}"?`);
 
   if (!confirm(lines.join('\n'))) return;
@@ -873,10 +799,6 @@ function applyLogData(id, found) {
   if (found.gold      !== null) a.gold      = found.gold;
   if (found.gems      !== null) a.gems      = found.gems;
   if (found.dailyWins !== null) a.dailyWins = Math.min(found.dailyWins, 15);
-  if (found.questReward !== null) {
-    a.quest.reward    = found.questReward;
-    a.quest.completed = found.questCompleted;
-  }
   a.updatedAt = Date.now();
   commit();
 }
