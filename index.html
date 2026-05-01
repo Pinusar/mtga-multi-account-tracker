@@ -285,6 +285,18 @@
     .total-lbl { font-size: .62rem; text-transform: uppercase; letter-spacing: .07em; color: var(--d); margin-bottom: .15rem }
     .total-val { font-size: 1rem; font-weight: 700; line-height: 1 }
 
+    /* Draft type toggle */
+    .draft-type-bar {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .4rem 1rem;
+      background: var(--s1);
+      border-bottom: 1px solid var(--br);
+      font-size: .78rem;
+      color: var(--d);
+    }
+
     /* IO row */
     .io-row { padding: .6rem 1rem; display: flex; gap: .5rem }
 
@@ -347,10 +359,13 @@
 <div id="app"></div>
 <script>
 // ── Constants ────────────────────────────────────────────────────────────────
-const STORAGE_KEY  = 'mtga_accounts';
-const RESET_KEY    = 'mtga_last_reset';
-const DRAFT_GOLD   = 5000;
-const DRAFT_GEMS   = 750;
+const STORAGE_KEY         = 'mtga_accounts';
+const RESET_KEY           = 'mtga_last_reset';
+const DRAFT_TYPE_KEY      = 'mtga_draft_type';
+const QUICK_DRAFT_GOLD    = 5000;
+const QUICK_DRAFT_GEMS    = 750;
+const PREMIER_DRAFT_GOLD  = 10000;
+const PREMIER_DRAFT_GEMS  = 1500;
 const WIN_CUTOFF   = 4;
 const WIN_REWARDS  = [250, 100, 100, 100]; // gold per win, in order
 const QUEST_MAX    = 3;
@@ -358,10 +373,14 @@ const QUEST_REWARD = 500;
 const RESET_HOUR   = 9; // 09:00 UTC (per MTGA _dailyRewardResetTimestamp)
 
 // ── State ────────────────────────────────────────────────────────────────────
-let accounts  = [];
-let didReset  = false;
-let showModal = false;
-let showHelp  = false;
+let accounts   = [];
+let didReset   = false;
+let showModal  = false;
+let showHelp   = false;
+let draftType  = 'quick'; // 'quick' | 'premier'
+
+function draftGoldCost() { return draftType === 'premier' ? PREMIER_DRAFT_GOLD : QUICK_DRAFT_GOLD; }
+function draftGemsCost() { return draftType === 'premier' ? PREMIER_DRAFT_GEMS : QUICK_DRAFT_GEMS; }
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 function save() {
@@ -377,6 +396,7 @@ function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   accounts = raw ? JSON.parse(raw) : [];
   accounts.forEach(a => { if (a.quests == null) a.quests = 0; });
+  draftType = localStorage.getItem(DRAFT_TYPE_KEY) || 'quick';
   checkReset();
 }
 
@@ -405,7 +425,7 @@ function checkReset() {
 
 // ── Domain ───────────────────────────────────────────────────────────────────
 function canDraft(a) {
-  return !a.inDraft && (a.gold >= DRAFT_GOLD || a.gems >= DRAFT_GEMS);
+  return !a.inDraft && (a.gold >= draftGoldCost() || a.gems >= draftGemsCost());
 }
 
 function priority(a) {
@@ -507,10 +527,20 @@ function completeQuest(id) {
   commit();
 }
 
+function completeQuest750(id) {
+  const a = accounts.find(a => a.id === id);
+  if (!a || a.quests === 0) return;
+  a.quests--;
+  a.gold += 750;
+  a.updatedAt = Date.now();
+  commit();
+}
+
 function draftGold(id) {
   const a = accounts.find(a => a.id === id);
-  if (!a || a.gold < DRAFT_GOLD || a.inDraft) return;
-  a.gold -= DRAFT_GOLD;
+  const cost = draftGoldCost();
+  if (!a || a.gold < cost || a.inDraft) return;
+  a.gold -= cost;
   a.dailyWins = 0;
   a.inDraft = true;
   a.updatedAt = Date.now();
@@ -519,12 +549,19 @@ function draftGold(id) {
 
 function draftGems(id) {
   const a = accounts.find(a => a.id === id);
-  if (!a || a.gems < DRAFT_GEMS || a.inDraft) return;
-  a.gems -= DRAFT_GEMS;
+  const cost = draftGemsCost();
+  if (!a || a.gems < cost || a.inDraft) return;
+  a.gems -= cost;
   a.dailyWins = 0;
   a.inDraft = true;
   a.updatedAt = Date.now();
   commit();
+}
+
+function setDraftType(type) {
+  draftType = type;
+  localStorage.setItem(DRAFT_TYPE_KEY, type);
+  render();
 }
 
 function finishDraft(id) {
@@ -586,15 +623,17 @@ function renderCard(a) {
   const p            = priority(a);
 
   // gold progress bar
-  const goldPct   = Math.min(100, (a.gold / DRAFT_GOLD) * 100);
-  const barClass  = a.gold >= DRAFT_GOLD ? 'ready' : '';
+  const goldCost  = draftGoldCost();
+  const gemsCost  = draftGemsCost();
+  const goldPct   = Math.min(100, (a.gold / goldCost) * 100);
+  const barClass  = a.gold >= goldCost ? 'ready' : '';
 
   // shortfall text
   let shortfall = '';
   if (!canDraft(a)) {
     const parts = [];
-    if (a.gold < DRAFT_GOLD) parts.push(`${fmt(DRAFT_GOLD - a.gold)}g to draft`);
-    if (a.gems < DRAFT_GEMS) parts.push(`${fmt(DRAFT_GEMS - a.gems)} gems to draft`);
+    if (a.gold < goldCost) parts.push(`${fmt(goldCost - a.gold)}g to draft`);
+    if (a.gems < gemsCost) parts.push(`${fmt(gemsCost - a.gems)} gems to draft`);
     shortfall = `<div class="shortfall">${parts.join(' · ')}</div>`;
   }
 
@@ -616,7 +655,8 @@ function renderCard(a) {
   const questAddBtn = a.quests < QUEST_MAX
     ? `<button class="btn btn-xs" onclick="addQuest('${a.id}')">+</button>` : '';
   const questCompleteBtn = a.quests > 0
-    ? `<button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">Complete quest (+${fmt(QUEST_REWARD)}g)</button>` : '';
+    ? `<button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">Complete quest (+${fmt(QUEST_REWARD)}g)</button>
+       <button class="btn btn-xs btn-green" onclick="completeQuest750('${a.id}')">Complete quest (+750g)</button>` : '';
   const questSection = `
     <div class="quest-row">
       <span class="quest-lbl">Quests</span>
@@ -637,11 +677,11 @@ function renderCard(a) {
       </div>`;
   } else {
     const btns = [
-      a.gold >= DRAFT_GOLD
-        ? `<button class="btn btn-green btn-draft" onclick="draftGold('${a.id}')">⚔ Draft (5,000g)</button>`
+      a.gold >= goldCost
+        ? `<button class="btn btn-green btn-draft" onclick="draftGold('${a.id}')">⚔ Draft (${fmt(goldCost)}g)</button>`
         : '',
-      a.gems >= DRAFT_GEMS
-        ? `<button class="btn btn-gem btn-draft" onclick="draftGems('${a.id}')">⚔ Draft (750💎)</button>`
+      a.gems >= gemsCost
+        ? `<button class="btn btn-gem btn-draft" onclick="draftGems('${a.id}')">⚔ Draft (${fmt(gemsCost)}💎)</button>`
         : '',
     ].join('');
     if (btns) draftSection = `<div class="draft-row">${btns}</div>`;
@@ -723,7 +763,7 @@ function render() {
 
   const totalGold   = accounts.reduce((s, a) => s + a.gold, 0);
   const totalGems   = accounts.reduce((s, a) => s + a.gems, 0);
-  const totalDrafts = accounts.reduce((s, a) => s + Math.floor(a.gold / DRAFT_GOLD) + Math.floor(a.gems / DRAFT_GEMS), 0);
+  const totalDrafts = accounts.reduce((s, a) => s + Math.floor(a.gold / draftGoldCost()) + Math.floor(a.gems / draftGemsCost()), 0);
 
   const totalsBar = accounts.length ? `
     <div class="totals">
@@ -757,7 +797,7 @@ function render() {
           <ul>
             <li>Get <b>4 wins</b> on each account — gold is added automatically as you record wins</li>
             <li>Complete <b>quests</b> for +500g each (you gain 1 new quest per day, max 3 stored)</li>
-            <li>Once an account has <b>5,000g or 750 gems</b>, enter a draft</li>
+            <li>Once an account has enough for a draft (<b>Quick: 5,000g / 750💎 · Premier: 10,000g / 1,500💎</b>), enter a draft</li>
           </ul>
 
           <h3>The banner</h3>
@@ -769,7 +809,7 @@ function render() {
             <li>Click <b>gold or gems</b> to edit the value directly</li>
             <li><b>+Win</b> — record a win (gold added automatically)</li>
             <li><b>+</b> / <b>Complete quest</b> — manually add a quest or complete one for +500g</li>
-            <li><b>Draft (5,000g / 750💎)</b> — start a draft, cost is deducted</li>
+            <li><b>Draft (gold / gems)</b> — start a draft, cost is deducted; use the <b>Quick / Premier</b> toggle at the top to set the format</li>
           </ul>
 
           <h3>Data</h3>
@@ -789,6 +829,11 @@ function render() {
         <button class="btn btn-primary" onclick="openModal()">+ Account</button>
       </div>
     </header>
+    <div class="draft-type-bar">
+      <span>Draft:</span>
+      <button class="btn btn-xs${draftType === 'quick' ? ' active' : ''}" onclick="setDraftType('quick')">Quick (5,000g / 750💎)</button>
+      <button class="btn btn-xs${draftType === 'premier' ? ' active' : ''}" onclick="setDraftType('premier')">Premier (10,000g / 1,500💎)</button>
+    </div>
     ${didReset ? '<div class="notice">Daily wins reset (09:00 UTC)</div>' : ''}
     ${totalsBar}
     ${banner}
