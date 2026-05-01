@@ -65,8 +65,9 @@
     }
     .btn:active { opacity: .7 }
     .btn-primary { background: #1d4ed8; border-color: #3b82f6 }
-    .btn-green   { background: #14532d; border-color: var(--green); color: var(--green) }
-    .btn-gem     { background: #2e1065; border-color: var(--gem);   color: var(--gem) }
+    .btn-green   { background: #14532d; border-color: var(--green);  color: var(--green) }
+    .btn-orange  { background: #431407; border-color: var(--orange); color: var(--orange) }
+    .btn-gem     { background: #2e1065; border-color: var(--gem);    color: var(--gem) }
     .btn-del     { color: var(--red); border-color: transparent; background: transparent; padding: .3rem .5rem; font-size: .9rem }
     .btn-xs      { padding: .28rem .55rem; font-size: .75rem }
     .active      { background: #1d4ed8 !important; border-color: #3b82f6 !important; color: #fff !important }
@@ -656,7 +657,7 @@ function renderCard(a) {
     ? `<button class="btn btn-xs" onclick="addQuest('${a.id}')">+</button>` : '';
   const questCompleteBtn = a.quests > 0
     ? `<button class="btn btn-xs btn-green" onclick="completeQuest('${a.id}')">Complete quest (+${fmt(QUEST_REWARD)}g)</button>
-       <button class="btn btn-xs btn-green" onclick="completeQuest750('${a.id}')">Complete quest (+750g)</button>` : '';
+       <button class="btn btn-xs btn-orange" onclick="completeQuest750('${a.id}')">Complete quest (+750g)</button>` : '';
   const questSection = `
     <div class="quest-row">
       <span class="quest-lbl">Quests</span>
