@@ -70,6 +70,12 @@
     .btn-gem     { background: #2e1065; border-color: var(--gem);    color: var(--gem) }
     .btn-del     { color: var(--red); border-color: transparent; background: transparent; padding: .3rem .5rem; font-size: .9rem }
     .btn-xs      { padding: .28rem .55rem; font-size: .75rem }
+    @keyframes cardFlash {
+      0%   { box-shadow: 0 0 0 2px rgba(34,197,94,.8), 0 0 20px rgba(34,197,94,.2) }
+      65%  { box-shadow: 0 0 0 2px rgba(34,197,94,.8), 0 0 20px rgba(34,197,94,.2) }
+      100% { box-shadow: none }
+    }
+    .card-flash { animation: cardFlash 1.3s ease-out forwards }
     .active      { background: #1d4ed8 !important; border-color: #3b82f6 !important; color: #fff !important }
 
     /* ── Notice ──────────────────────────────────────────────── */
@@ -379,6 +385,9 @@ let didReset   = false;
 let showModal  = false;
 let showHelp   = false;
 let draftType  = 'quick'; // 'quick' | 'premier'
+let flashId    = null;
+let lastOrder  = null;
+let resortTimer = null;
 
 function draftGoldCost() { return draftType === 'premier' ? PREMIER_DRAFT_GOLD : QUICK_DRAFT_GOLD; }
 function draftGemsCost() { return draftType === 'premier' ? PREMIER_DRAFT_GEMS : QUICK_DRAFT_GEMS; }
@@ -391,6 +400,14 @@ function save() {
 function commit() {
   save();
   render();
+}
+
+function commitWithFlash(id) {
+  save();
+  clearTimeout(resortTimer);
+  flashId = id;
+  render(lastOrder);
+  resortTimer = setTimeout(() => { flashId = null; render(); }, 1500);
 }
 
 function load() {
@@ -495,7 +512,7 @@ function setField(id, field, val) {
   if (!a) return;
   a[field] = val;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function setGold(id, val) { setField(id, 'gold', Math.max(0, parseInt(val) || 0)); }
@@ -508,7 +525,7 @@ function addWin(id) {
   a.gold += WIN_REWARDS[a.dailyWins];
   a.dailyWins++;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function addQuest(id) {
@@ -516,7 +533,7 @@ function addQuest(id) {
   if (!a || a.quests >= QUEST_MAX) return;
   a.quests++;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function completeQuest(id) {
@@ -525,7 +542,7 @@ function completeQuest(id) {
   a.quests--;
   a.gold += QUEST_REWARD;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function completeQuest750(id) {
@@ -534,7 +551,7 @@ function completeQuest750(id) {
   a.quests--;
   a.gold += 750;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function draftGold(id) {
@@ -545,7 +562,7 @@ function draftGold(id) {
   a.dailyWins = 0;
   a.inDraft = true;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function draftGems(id) {
@@ -556,7 +573,7 @@ function draftGems(id) {
   a.dailyWins = 0;
   a.inDraft = true;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 function setDraftType(type) {
@@ -570,7 +587,7 @@ function finishDraft(id) {
   if (!a) return;
   a.inDraft = false;
   a.updatedAt = Date.now();
-  commit();
+  commitWithFlash(id);
 }
 
 // ── Import / Export ───────────────────────────────────────────────────────────
@@ -689,7 +706,7 @@ function renderCard(a) {
   }
 
   return `
-  <div class="card${a.inDraft ? ' drafting' : ` p-${p}`}">
+  <div class="card${a.inDraft ? ' drafting' : ` p-${p}`}${a.id === flashId ? ' card-flash' : ''}">
     <div class="card-top">
       <span class="acct-name" onclick="editName('${a.id}',this)" title="Click to rename">${esc(a.name)}</span>
       <span class="badge ${cls}">${lbl}</span>
@@ -727,8 +744,16 @@ function renderCard(a) {
 }
 
 // ── Main render ───────────────────────────────────────────────────────────────
-function render() {
-  const list  = sorted();
+function render(forcedOrder) {
+  let list;
+  if (forcedOrder) {
+    list = forcedOrder.map(id => accounts.find(a => a.id === id)).filter(Boolean);
+    const inOrder = new Set(forcedOrder);
+    accounts.filter(a => !inOrder.has(a.id)).forEach(a => list.push(a));
+  } else {
+    list = sorted();
+  }
+  lastOrder = list.map(a => a.id);
   const best  = list[0];
 
   // banner
